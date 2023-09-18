@@ -24,13 +24,6 @@ def load_corpus(corpus_path):
         x = xy[0].split(' ')
         y = int(xy[1].rstrip())
         corpus.append((x, y))
-    # correct line 1092
-    corpus[1091][0][3] = 'can\'t'
-    corpus[1091][0].pop(4)
-    corpus[1091][0].pop(4)
-    corpus[1091][0][10] = 'kilmer\'s'
-    corpus[1091][0].pop(11)
-    corpus[1091][0].pop(11)
     return corpus
 
 
@@ -82,7 +75,14 @@ def tag_negation(snippet):
 # corpus is a list of tuples (snippet, label)
 # Returns a dictionary {word: index}
 def get_feature_dictionary(corpus):
-    pass
+    pos = 0
+    d = {}
+    for snippet, label in corpus:
+        for word in snippet:
+            if not word in d.keys():
+                d[word] = pos
+                pos += 1
+    return d
     
 
 # Converts a snippet into a feature vector
@@ -90,7 +90,11 @@ def get_feature_dictionary(corpus):
 # feature_dict is a dictionary {word: index}
 # Returns a Numpy array
 def vectorize_snippet(snippet, feature_dict):
-    pass
+    arr = numpy.zeros(len(feature_dict))
+    for word in snippet:
+        if word in feature_dict:
+            arr[feature_dict[word]] += 1
+    return arr
 
 
 # Trains a classification model (in-place)
@@ -98,22 +102,40 @@ def vectorize_snippet(snippet, feature_dict):
 # feature_dict is a dictionary {word: label}
 # Returns a tuple (X, Y) where X and Y are Numpy arrays
 def vectorize_corpus(corpus, feature_dict):
-    pass
+    n = len(corpus)
+    d = len(feature_dict)
+    X = numpy.empty((n, d))
+    Y = numpy.empty(n)
+    for i in range(n):
+        snippet, label = corpus[i]
+        X[i] = vectorize_snippet(snippet, feature_dict)
+        Y[i] = label
+    return X, Y
 
 
 # Performs min-max normalization (in-place)
 # X is a Numpy array
 # No return value
 def normalize(X):
-    pass
+    n = len(X)
+    d = len(X[n - 1])
+    for j in range(d):
+        col_min, col_max = numpy.min(X[:, j]), numpy.max(X[:, j])
+        diff = col_max - col_min
+        if diff != 0:
+            X[:, j] = (X[:, j] - col_min) / diff
 
 
 # Trains a model on a training corpus
 # corpus_path is a string
 # Returns a LogisticRegression
 def train(corpus_path):
-    M = load_corpus(corpus_path)
-    print(tag_negation(M[10][0]))
+    corpus = load_corpus(corpus_path)
+    feature_dict = get_feature_dictionary(corpus)
+    x, y = vectorize_corpus(corpus, feature_dict)
+    normalize(x)
+    model = LogisticRegression().fit(x, y)
+    return model, feature_dict
 
 
 # Calculate precision, recall, and F-measure
@@ -121,7 +143,13 @@ def train(corpus_path):
 # Y_test is a Numpy array
 # Returns a tuple of floats
 def evaluate_predictions(Y_pred, Y_test):
-    pass
+    tp = len(Y_pred[(Y_pred == 1) & (Y_test == 1)])
+    fp = len(Y_pred[(Y_pred == 1) & (Y_test == 0)])
+    fn = len(Y_pred[(Y_pred == 0) & (Y_test == 1)])
+    p = tp / (tp + fp)
+    r = tp / (tp + fn)
+    f = 2 * p * r / (p + r)
+    return p, r, f
 
 
 # Evaluates a model on a test corpus and prints the results
@@ -129,7 +157,17 @@ def evaluate_predictions(Y_pred, Y_test):
 # corpus_path is a string
 # Returns a tuple of floats
 def test(model, feature_dict, corpus_path):
-    pass
+    corpus = load_corpus(corpus_path)
+    n = len(corpus)
+    tagged_corpus = []
+    for i in range(n):
+        snippet, label = corpus[i]
+        tagged_corpus.append((tag_negation(snippet), label))
+    x, y = vectorize_corpus(tagged_corpus, feature_dict)
+
+    normalize(x)
+    y_pred = model.predict(x)
+    return evaluate_predictions(y_pred, y)    
 
 
 # Selects the top k highest-weight features of a logistic regression model
@@ -137,7 +175,10 @@ def test(model, feature_dict, corpus_path):
 # feature_dict is a dictionary {word: index}
 # k is an int
 def get_top_features(logreg_model, feature_dict, k=1):
-    pass
+    weights = [(index, value) for index, value in enumerate(logreg_model.coef_[0])]
+    sorted_weights = sorted(weights, key=lambda x: abs(x[1]), reverse=True)
+    inv_map = {v: k for k, v in feature_dict.items()}
+    return [(inv_map[index], weight) for index, weight in sorted_weights[:k]]
 
 
 def main(args):
