@@ -40,26 +40,21 @@ def is_negation(word):
 def tag_negation(snippet):
     tags = nltk.pos_tag(snippet)
     negated_snippet = []
-    negating, append_only = False, False
+    negating = False
     N = len(snippet)
     for i in range(N):
         word = snippet[i]
-        if append_only:
-            negated_snippet.append(word)
-            append_only = False
-            continue
         if not is_negation(word):
             if not negating:
                 negated_snippet.append(word)
             else:
-                if word in negation_enders or word in sentence_enders or tags[i] == 'JJR' or tags[i] == 'RBR':
+                if word in negation_enders or word in sentence_enders or tags[i][1] == 'JJR' or tags[i][1] == 'RBR':
                     negating = False
                     negated_snippet.append(word)
                 else:
                     negated_snippet.append('NOT_' + word)
         elif word == 'not' and i < N - 1 and snippet[i + 1] == 'only':
             negated_snippet.append('not')
-            append_only = True
         else:
             negating = True
             if word.endswith('n\'t'):
